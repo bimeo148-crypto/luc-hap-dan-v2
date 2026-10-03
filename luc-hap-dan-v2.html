@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lực hấp dẫn trong không gian</title>
+<style>
+:root{--bg:#0b1020;--panel:#151c33;--fg:#e8ecf8;--mut:#8f9bb8;--acc:#5aa9ff;--warn:#ffb454}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,Arial,sans-serif}
+main{max-width:860px;margin:0 auto;padding:12px}
+h1{font-size:1.3rem;margin:4px 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+button{background:var(--panel);color:var(--fg);border:1px solid #2a3558;border-radius:8px;padding:8px 14px;font-size:1rem;cursor:pointer}
+button.on{background:var(--acc);color:#04101f;border-color:var(--acc)}
+canvas{width:100%;height:auto;border-radius:10px;display:block;background:#050914}
+.panel{background:var(--panel);border-radius:10px;padding:12px;margin-top:8px}
+label{display:block;margin:6px 0 2px;font-size:.92rem}
+input[type=range]{width:100%}
+input[type=text]{background:#0b1020;color:var(--fg);border:1px solid #2a3558;border-radius:8px;padding:8px;font-size:1rem;width:220px;max-width:100%}
+.mut{color:var(--mut);font-size:.9rem;margin-top:6px;line-height:1.5}
+.msg{color:var(--warn);font-weight:600;margin-top:6px}
+b{color:var(--acc)}
+.tray{display:flex;gap:8px;overflow-x:auto;padding:8px;background:var(--panel);border-radius:10px;margin-top:8px}
+.it{flex:0 0 auto;text-align:center;font-size:.8rem;padding:6px 8px;border:1px solid #2a3558;border-radius:8px;cursor:grab;touch-action:none;user-select:none}
+.dot{display:block;margin:0 auto 4px;border-radius:50%}
+.ghost{position:fixed;width:22px;height:22px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:9;opacity:.85}
+summary{cursor:pointer;font-weight:600}
+.fm div{padding:3px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>🪐 Lực hấp dẫn trong không gian</h1>
+<div class="row"><button id="tl" class="on">🔬 Phòng thí nghiệm</button><button id="tq">🧠 Câu đố</button></div>
+<canvas id="c" width="800" height="500"></canvas>
+
+<div id="lab">
+  <div class="tray" id="tray"></div>
+  <div class="mut">Kéo một thiên thể thả vào khung (nó sẽ tự có quỹ đạo tròn quanh vật hút mạnh nhất tại điểm thả). Bấm một lần vào ô để đặt nó ở quỹ đạo thật. Nên thả Mặt Trời trước.</div>
+  <div class="panel">
+    <div class="row">
+      <button id="pause">⏸ Tạm dừng</button><button id="clr">🗑 Xóa hết</button>
+      <label style="margin:0"><input type="checkbox" id="trl" checked> Vệt quỹ đạo</label>
+    </div>
+    <label>Tốc độ thời gian: <b id="spv"></b> năm/giây</label><input type="range" id="sps" min="0.05" max="2" step="0.05" value="0.3">
+    <label>Thu phóng: <b id="zmv"></b> px/AU (1 AU = khoảng cách Trái Đất - Mặt Trời)</label><input type="range" id="zm" min="0.7" max="2.6" step="0.02" value="1.9">
+  </div>
+  <div class="panel">
+    <div class="mut" id="hint">Bấm vào một thiên thể trong khung để xem và chỉnh khối lượng, lực hấp dẫn, quỹ đạo.</div>
+    <div id="sel" style="display:none">
+      <b id="sn" style="font-size:1.1rem"></b>
+      <label>Khối lượng: ×<b id="fv"></b> so với thật (kích thước và lực tự thay đổi theo)</label>
+      <input type="range" id="fs" min="-1" max="3.5" step="0.05" value="0">
+      <label>Vận tốc quỹ đạo: <b id="kvv"></b>× vận tốc quỹ đạo tròn <span class="mut">(&lt;1: quỹ đạo elip/rơi vào, &gt;1,41: bay thoát)</span></label>
+      <input type="range" id="kv" min="0" max="1.5" step="0.01" value="1">
+      <div class="mut" id="inf"></div>
+      <p><button id="del">🗑 Xóa vật thể này</button></p>
+    </div>
+  </div>
+</div>
+
+<div id="quiz" style="display:none">
+  <div class="panel">
+    <div id="qt"></div>
+    <p><input type="text" id="ans" placeholder="Đáp án (vd: 7,66 hoặc 3,5e22)"> <b id="qu"></b></p>
+    <div class="row"><button id="chk">Kiểm tra</button><button id="nxt">Câu tiếp ➜</button><span id="qs" class="mut"></span></div>
+    <div class="msg" id="qm"></div>
+    <div class="mut" id="sol"></div>
+    <div class="mut">Sai số cho phép 3%. Đúng ngay lần 1: 10 điểm, lần 2: 6 điểm, lần 3: 3 điểm. Sai quá 3 lần sẽ hiện lời giải. Hình minh họa không đúng tỉ lệ.</div>
+  </div>
+  <details open class="panel fm">
+    <summary>📐 Bảng công thức</summary>
+    <div><b>Lực hấp dẫn:</b> F = G·m₁·m₂ / r²</div>
+    <div><b>Gia tốc trọng trường trên bề mặt:</b> g = G·M / R²</div>
+    <div><b>Vận tốc quỹ đạo tròn:</b> v = √(G·M / r)</div>
+    <div><b>Chu kỳ:</b> T = 2πr / v = 2π·√(r³ / (G·M))</div>
+    <div><b>Định luật 3 Kepler:</b> T₁² / T₂² = a₁³ / a₂³</div>
+    <div class="mut">G = 6,674×10⁻¹¹ N·m²/kg² · 1 AU = 1,496×10¹¹ m · 1 ngày = 86 400 s · M☉ = 1,989×10³⁰ kg · M⊕ = 5,972×10²⁴ kg</div>
+  </details>
+</div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d'),W=800,H=500;
+const MS=1.989e30,AU=1.496e11,GS=6.674e-11,GA=4*Math.PI**2;
+const cl=(v,a,b)=>Math.min(b,Math.max(a,v));
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const cm=x=>String(x).replace('.',',');
+function fmtn(x){
+  if(!isFinite(x)||x===0)return'0';
+  const e=Math.floor(Math.log10(Math.abs(x)));
+  if(e>=-2&&e<=4)return cm(+x.toPrecision(4));
+  return cm((x/10**e).toFixed(2))+' × 10<sup>'+e+'</sup>';
+}
+const P=[
+ {n:'Mặt Trời',M:MS,R:696340,a:0,T:0,c:'#ffd54a',px:10},
+ {n:'Sao Thủy',M:3.301e23,R:2440,a:.387,T:87.97,c:'#b0a99f',px:3},
+ {n:'Sao Kim',M:4.867e24,R:6052,a:.723,T:224.7,c:'#e6c27a',px:4.5},
+ {n:'Trái Đất',M:5.972e24,R:6371,a:1,T:365.25,c:'#4f9dff',px:4.5},
+ {n:'Sao Hỏa',M:6.417e23,R:3390,a:1.524,T:687,c:'#e2674a',px:3.5},
+ {n:'Sao Mộc',M:1.898e27,R:69911,a:5.203,T:4332.6,c:'#d9a36c',px:8},
+ {n:'Sao Thổ',M:5.683e26,R:58232,a:9.537,T:10759,c:'#e9d8a6',px:7}
+];
+let mode='lab',B=[],sel=null,paused=false,SC=80;
+const mass=b=>P[b.t].M/MS*b.f;
+const rad=b=>cl(P[b.t].px*Math.cbrt(b.f),2,42);
+const X=x=>W/2+x*SC,Y=y=>H/2+y*SC;
+
+/* ---------- Vật lý (đơn vị: AU, năm, khối lượng Mặt Trời) ---------- */
+function acc(){
+  B.forEach(b=>b.ax=b.ay=0);
+  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++){
+    const a=B[i],b=B[j],dx=b.x-a.x,dy=b.y-a.y,r2=dx*dx+dy*dy+1e-4,k=GA/(r2*Math.sqrt(r2));
+    const ma=mass(a),mb=mass(b);
+    a.ax+=dx*k*mb;a.ay+=dy*k*mb;b.ax-=dx*k*ma;b.ay-=dy*k*ma;
+  }
+}
+function step(dt){
+  B.forEach(b=>{b.vx+=b.ax*dt/2;b.vy+=b.ay*dt/2;b.x+=b.vx*dt;b.y+=b.vy*dt});
+  acc();
+  B.forEach(b=>{b.vx+=b.ax*dt/2;b.vy+=b.ay*dt/2});
+}
+function dom(b){
+  let best=null,bv=0;
+  for(const o of B){if(o===b)continue;const v=mass(o)/((o.x-b.x)**2+(o.y-b.y)**2+1e-9);if(v>bv){bv=v;best=o}}
+  return best;
+}
+function place(t,x,y){
+  const b={t,x,y,vx:0,vy:0,ax:0,ay:0,f:1,tr:[]},d=dom(b);
+  if(d){
+    const dx=x-d.x,dy=y-d.y,r=Math.hypot(dx,dy);
+    if(r>.02){const vc=Math.sqrt(GA*mass(d)/r);b.vx=d.vx+vc*(-dy/r);b.vy=d.vy+vc*(dx/r)}
+  }
+  B.push(b);
+  let px=0,py=0,m=0;B.forEach(o=>{px+=mass(o)*o.vx;py+=mass(o)*o.vy;m+=mass(o)});
+  B.forEach(o=>{o.vx-=px/m;o.vy-=py/m});
+  acc();sel=b;syncSel();
+}
+function syncSel(){
+  $('sel').style.display=sel?'':'none';$('hint').style.display=sel?'none':'';
+  if(!sel)return;
+  $('sn').textContent=P[sel.t].n;$('fs').value=Math.log10(sel.f);
+  const d=dom(sel);
+  if(d){
+    const r=Math.hypot(sel.x-d.x,sel.y-d.y),vc=Math.sqrt(GA*mass(d)/r);
+    $('kv').value=cl(Math.hypot(sel.vx-d.vx,sel.vy-d.vy)/vc,0,1.5);
+  }
+}
+$('fs').oninput=()=>{if(sel){sel.f=10**(+$('fs').value);acc()}};
+$('kv').oninput=()=>{
+  const d=sel&&dom(sel);if(!d)return;
+  const dx=sel.x-d.x,dy=sel.y-d.y,r=Math.hypot(dx,dy),vc=Math.sqrt(GA*mass(d)/r),k=+$('kv').value;
+  sel.vx=d.vx+k*vc*(-dy/r);sel.vy=d.vy+k*vc*(dx/r);sel.tr=[];
+};
+$('del').onclick=()=>{B=B.filter(b=>b!==sel);sel=null;syncSel();acc()};
+$('clr').onclick=()=>{B=[];sel=null;syncSel()};
+$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'▶ Tiếp tục':'⏸ Tạm dừng'};
+
+/* ---------- Khay thiên thể: kéo thả ---------- */
+let gh=null,dt0=null,st=null;
+P.forEach((p,i)=>{
+  const e=document.createElement('div');e.className='it';
+  const s=10+p.px*2;
+  e.innerHTML='<span class="dot" style="width:'+s+'px;height:'+s+'px;background:'+p.c+'"></span>'+p.n;
+  e.onpointerdown=ev=>{
+    dt0=i;st=[ev.clientX,ev.clientY];gh=document.createElement('div');gh.className='ghost';
+    gh.style.background=p.c;document.body.append(gh);mv(ev);ev.preventDefault();
+  };
+  $('tray').append(e);
+});
+function mv(e){if(gh){gh.style.left=e.clientX+'px';gh.style.top=e.clientY+'px'}}
+addEventListener('pointermove',mv);
+addEventListener('pointerup',e=>{
+  if(!gh)return;gh.remove();gh=null;
+  const r=cv.getBoundingClientRect();
+  if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){
+    const px=(e.clientX-r.left)*W/r.width,py=(e.clientY-r.top)*H/r.height;
+    place(dt0,(px-W/2)/SC,(py-H/2)/SC);
+  }else if(Math.hypot(e.clientX-st[0],e.clientY-st[1])<8){
+    place(dt0,dt0===0?(B.some(b=>b.t===0)?4:0):P[dt0].a,0);
+  }
+});
+cv.addEventListener('pointerdown',e=>{
+  if(mode!=='lab')return;
+  const r=cv.getBoundingClientRect(),px=(e.clientX-r.left)*W/r.width,py=(e.clientY-r.top)*H/r.height;
+  let best=null,bd=1e9;
+  for(const b of B){const d=Math.hypot(X(b.x)-px,Y(b.y)-py);if(d<Math.max(rad(b)+8,16)&&d<bd){bd=d;best=b}}
+  sel=best;syncSel();
+});
+
+function info(){
+  const b=sel,mk=mass(b)*MS,d=dom(b);
+  $('fv').textContent=cm(+b.f.toPrecision(3));
+  const v=Math.hypot(b.vx,b.vy)*4.7405;
+  let h='Khối lượng m = <b>'+fmtn(mk)+' kg</b><br>Bán kính ≈ <b>'+fmtn(P[b.t].R*Math.cbrt(b.f))+' km</b> (∝ khối lượng<sup>1/3</sup>)<br>Tốc độ: '+fmtn(v)+' km/s<br>';
+  h+='Lực hấp dẫn tổng hợp tác dụng lên nó: <b>'+fmtn(Math.hypot(b.ax,b.ay)*mk*1.5022e-4)+' N</b><br>';
+  if(d){
+    const r=Math.hypot(b.x-d.x,b.y-d.y),F=GS*mk*mass(d)*MS/(r*AU)**2;
+    h+='Lực mạnh nhất đến từ '+P[d.t].n+': F = G·m₁·m₂/r² = <b>'+fmtn(F)+' N</b> (r = '+fmtn(r)+' AU)<br>';
+    const mu=GA*(mass(d)+mass(b)),vv=(b.vx-d.vx)**2+(b.vy-d.vy)**2,a=1/(2/r-vv/mu);
+    h+=a>0?'Quỹ đạo quanh '+P[d.t].n+': bán trục lớn ≈ '+fmtn(a)+' AU, chu kỳ ≈ <b>'+fmtn(2*Math.PI*Math.sqrt(a**3/mu))+' năm</b>':'Quỹ đạo hở: vật này đang thoát khỏi '+P[d.t].n;
+  }
+  $('inf').innerHTML=h;$('kvv').textContent=$('kv').value.replace('.',',');
+}
+
+function drawLab(){
+  SC=10**(+$('zm').value);
+  $('spv').textContent=cm(+$('sps').value);$('zmv').textContent=Math.round(SC);
+  if(!paused){
+    const ys=+$('sps').value,n=Math.max(1,Math.ceil(ys/60/.0005)),dt=ys/60/n;
+    for(let i=0;i<n;i++)step(dt);
+    const L=B.length;B=B.filter(b=>Math.hypot(b.x,b.y)<300);
+    if(B.length!==L&&sel&&!B.includes(sel)){sel=null;syncSel()}
+    B.forEach(b=>{b.tr.push([b.x,b.y]);if(b.tr.length>260)b.tr.shift()});
+  }
+  if($('trl').checked)B.forEach(b=>{
+    ctx.strokeStyle=P[b.t].c;ctx.globalAlpha=.45;ctx.lineWidth=1.5;ctx.beginPath();
+    b.tr.forEach((q,i)=>i?ctx.lineTo(X(q[0]),Y(q[1])):ctx.moveTo(X(q[0]),Y(q[1])));ctx.stroke();ctx.globalAlpha=1;
+  });
+  ctx.font='11px system-ui';ctx.textAlign='center';
+  B.forEach(b=>{
+    const x=X(b.x),y=Y(b.y),r=rad(b);
+    ctx.fillStyle=P[b.t].c;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+    ctx.fillStyle='#cfd8ff';ctx.fillText(P[b.t].n,x,y-r-5);
+    if(b===sel){
+      ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,r+5,0,7);ctx.stroke();
+      const a=Math.hypot(b.ax,b.ay);
+      if(a>0){const ux=b.ax/a,uy=b.ay/a,L=r+18;
+        ctx.strokeStyle='#ffb454';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(x+ux*(r+6),y+uy*(r+6));ctx.lineTo(x+ux*(r+30),y+uy*(r+30));ctx.stroke();}
+    }
+  });
+  if(!B.length){ctx.fillStyle='#8f9bb8';ctx.font='16px system-ui';ctx.fillText('Kéo thiên thể từ khay bên dưới thả vào đây',W/2,H/2)}
+  if(sel)info();
+}
+
+/* ---------- Chế độ câu đố ---------- */
+const UN={'ngày':86400,'giờ':3600,'phút':60};
+const ORB=P.slice(1).map(p=>({n:p.n,h:'Mặt Trời',HM:MS,r:p.a*AU,u:'ngày',c:p.c,hc:P[0].c})).concat([
+ {n:'Mặt Trăng',h:'Trái Đất',HM:5.972e24,r:3.844e8,u:'ngày',c:'#ccc',hc:'#4f9dff'},
+ {n:'trạm ISS',h:'Trái Đất',HM:5.972e24,r:6.78e6,u:'phút',c:'#fff',hc:'#4f9dff'},
+ {n:'vệ tinh địa tĩnh',h:'Trái Đất',HM:5.972e24,r:4.216e7,u:'giờ',c:'#fff',hc:'#4f9dff'},
+ {n:'Io',h:'Sao Mộc',HM:1.898e27,r:4.217e8,u:'giờ',c:'#e8d27a',hc:'#d9a36c'},
+ {n:'Ganymede',h:'Sao Mộc',HM:1.898e27,r:1.0704e9,u:'ngày',c:'#aaa',hc:'#d9a36c'}]);
+const G11='6,674×10<sup>-11</sup>';
+let q=null,tries=0,done=false,total=0,nq=0;
+function genQ(){
+  const k=Math.floor(Math.random()*5),pl=P.slice(1);
+  if(k<2){
+    const o=rnd(ORB),v=Math.sqrt(GS*o.HM/o.r),T=2*Math.PI*Math.sqrt(o.r**3/(GS*o.HM));
+    const g=o.n+' chuyển động tròn quanh '+o.h+'. Khối lượng '+o.h+' M = '+fmtn(o.HM)+' kg; bán kính quỹ đạo r = '+fmtn(o.r)+' m. ';
+    const an={k:'o',h:o.h,hc:o.hc,o:[{n:o.n,c:o.c,l:'r = '+cm(o.r.toExponential(2)).replace('e+',' × 10^')+' m',rd:130}]};
+    if(k===0)return{t:g+'Tính <b>vận tốc quỹ đạo</b>.',a:v/1e3,u:'km/s',an,
+      s:['Công thức: v = √(G·M / r)','v = √('+G11+' × '+fmtn(o.HM)+' / '+fmtn(o.r)+')','v ≈ '+fmtn(v)+' m/s = '+fmtn(v/1e3)+' km/s']};
+    return{t:g+'Tính <b>chu kỳ quay</b> (đơn vị: '+o.u+').',a:T/UN[o.u],u:o.u,an,
+      s:['Công thức: T = 2π·√(r³ / (G·M))','T = 2π·√(('+fmtn(o.r)+')³ / ('+G11+' × '+fmtn(o.HM)+'))','T ≈ '+fmtn(T)+' s = '+fmtn(T/UN[o.u])+' '+o.u]};
+  }
+  if(k===2){
+    const p1=rnd(pl),p2=rnd(pl.filter(x=>x!==p1)),ans=p1.T*(p2.a/p1.a)**1.5,i1=p1.a<p2.a;
+    return{t:p1.n+' và '+p2.n+' cùng quay quanh Mặt Trời. '+p1.n+' có bán trục quỹ đạo a₁ = '+cm(p1.a)+' AU, chu kỳ T₁ = '+cm(p1.T)+' ngày. '+p2.n+' có a₂ = '+cm(p2.a)+' AU. Tính <b>chu kỳ T₂</b> của '+p2.n+' (đơn vị: ngày).',
+      a:ans,u:'ngày',
+      an:{k:'o',h:'Mặt Trời',hc:P[0].c,o:[{n:p1.n,c:p1.c,l:'a₁ = '+cm(p1.a)+' AU, T₁ = '+cm(p1.T)+' ngày',rd:i1?80:190},{n:p2.n,c:p2.c,l:'a₂ = '+cm(p2.a)+' AU, T₂ = ?',rd:i1?190:80}]},
+      s:['Định luật 3 Kepler: (T₂/T₁)² = (a₂/a₁)³ ⇒ T₂ = T₁·(a₂/a₁)<sup>3/2</sup>','T₂ = '+fmtn(p1.T)+' × ('+cm(p2.a)+' / '+cm(p1.a)+')<sup>3/2</sup>','T₂ ≈ '+fmtn(ans)+' ngày']};
+  }
+  if(k===3){
+    const p1=rnd(pl),p2=rnd(pl.filter(x=>x!==p1)),ra=Math.round((.3+Math.random()*2.7)*100)/100,r=ra*AU,F=GS*p1.M*p2.M/r**2;
+    return{t:'Hai hành tinh '+p1.n+' (m₁ = '+fmtn(p1.M)+' kg) và '+p2.n+' (m₂ = '+fmtn(p2.M)+' kg) cách nhau r = '+cm(ra)+' AU. Tính <b>lực hấp dẫn</b> giữa chúng (đơn vị: N, nhập dạng 3,5e22).',
+      a:F,u:'N',an:{k:'f',a:p1,b:p2,l:'r = '+cm(ra)+' AU'},
+      s:['Công thức: F = G·m₁·m₂ / r²','r = '+cm(ra)+' AU = '+fmtn(r)+' m','F = '+G11+' × '+fmtn(p1.M)+' × '+fmtn(p2.M)+' / ('+fmtn(r)+')²','F ≈ '+fmtn(F)+' N']};
+  }
+  const p=rnd(pl),g=GS*p.M/(p.R*1e3)**2;
+  return{t:p.n+' có khối lượng M = '+fmtn(p.M)+' kg và bán kính R = '+fmtn(p.R)+' km. Tính <b>gia tốc trọng trường</b> trên bề mặt (đơn vị: m/s²).',
+    a:g,u:'m/s²',an:{k:'g',p,l:'R = '+fmtn(p.R).replace(/<[^>]+>/g,'')+' km'},
+    s:['Công thức: g = G·M / R²','R = '+fmtn(p.R)+' km = '+fmtn(p.R*1e3)+' m','g = '+G11+' × '+fmtn(p.M)+' / ('+fmtn(p.R*1e3)+')²','g ≈ '+fmtn(g)+' m/s²']};
+}
+function next(){
+  q=genQ();tries=0;done=false;
+  $('qt').innerHTML=q.t;$('qu').textContent=q.u;$('ans').value='';$('ans').disabled=false;
+  $('qm').textContent='';$('sol').innerHTML='';hud();
+}
+function hud(){$('qs').textContent='Câu '+(nq+(done?0:1))+' · Điểm: '+total+' · Lượt còn lại: '+(3-tries)}
+function showSol(){$('sol').innerHTML='<b>Lời giải chi tiết:</b><br>'+q.s.join('<br>')+'<br><b>Đáp số: '+fmtn(q.a)+' '+q.u+'</b>'}
+function parse(s){s=s.trim().replace(/\s/g,'').replace(',','.').replace(/[x×*]10\^?/i,'e');return s?Number(s):NaN}
+$('chk').onclick=()=>{
+  if(done)return;
+  const u=parse($('ans').value);
+  if(isNaN(u)){$('qm').textContent='Hãy nhập một con số (vd: 7,66 hoặc 3,5e22).';return}
+  tries++;
+  if(Math.abs(u-q.a)/Math.abs(q.a)<=.03){
+    const p=[10,6,3][tries-1];total+=p;done=true;nq++;$('ans').disabled=true;
+    $('qm').textContent='✅ Chính xác! +'+p+' điểm';showSol();
+  }else if(tries>=3){
+    done=true;nq++;$('ans').disabled=true;$('qm').textContent='❌ Đã sai 3 lần. Cùng xem lời giải nhé!';showSol();
+  }else $('qm').textContent='Chưa đúng, đáp án '+(u>q.a?'nhỏ hơn':'lớn hơn')+' số bạn nhập. Còn '+(3-tries)+' lượt.';
+  hud();
+};
+$('ans').onkeydown=e=>{if(e.key==='Enter')$('chk').click()};
+$('nxt').onclick=next;
+
+function drawQuiz(ts){
+  const t=ts/1000,a=q.an,cx=W/2,cy=H/2;
+  ctx.textAlign='center';ctx.font='13px system-ui';
+  const circ=(x,y,r,c)=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill()};
+  if(a.k==='o'){
+    circ(cx,cy,24,a.hc);ctx.fillStyle='#cfd8ff';ctx.fillText(a.h,cx,cy+42);
+    a.o.forEach((o,i)=>{
+      ctx.strokeStyle='rgba(143,155,184,.6)';ctx.setLineDash([4,5]);ctx.beginPath();ctx.arc(cx,cy,o.rd,0,7);ctx.stroke();ctx.setLineDash([]);
+      const ang=t*1.2*Math.pow(80/o.rd,1.5)+i*2;
+      const x=cx+o.rd*Math.cos(ang),y=cy+o.rd*Math.sin(ang);
+      circ(x,y,7,o.c);ctx.fillStyle='#cfd8ff';ctx.fillText(o.n,x,y-12);
+      ctx.textAlign='left';ctx.fillText(o.n+': '+o.l,14,24+i*20);ctx.textAlign='center';
+    });
+  }else if(a.k==='f'){
+    const x1=220,x2=580;circ(x1,cy,28,a.a.c);circ(x2,cy,28,a.b.c);
+    ctx.strokeStyle='#ffb454';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x1+34,cy);ctx.lineTo(x1+90,cy);ctx.moveTo(x2-34,cy);ctx.lineTo(x2-90,cy);ctx.stroke();
+    ctx.fillStyle='#cfd8ff';ctx.fillText(a.a.n,x1,cy+50);ctx.fillText(a.b.n,x2,cy+50);ctx.fillText('F',x1+62,cy-10);ctx.fillText('F',x2-62,cy-10);
+    ctx.strokeStyle='rgba(143,155,184,.7)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x1,cy+80);ctx.lineTo(x2,cy+80);ctx.stroke();ctx.fillText(a.l,cx,cy+98);
+  }else{
+    circ(cx,cy,110,a.p.c);ctx.strokeStyle='#ffb454';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx,cy-190);ctx.lineTo(cx,cy-118);ctx.stroke();
+    ctx.fillStyle='#ffb454';ctx.beginPath();ctx.moveTo(cx,cy-112);ctx.lineTo(cx-7,cy-126);ctx.lineTo(cx+7,cy-126);ctx.fill();
+    ctx.fillStyle='#cfd8ff';ctx.fillText('g = ?',cx+30,cy-160);ctx.fillStyle='#04101f';ctx.fillText(a.p.n,cx,cy);ctx.fillText(a.l,cx,cy+20);
+  }
+}
+
+/* ---------- Chung ---------- */
+function setMode(m){
+  mode=m;$('tl').className=m==='lab'?'on':'';$('tq').className=m==='quiz'?'on':'';
+  $('lab').style.display=m==='lab'?'':'none';$('quiz').style.display=m==='quiz'?'':'none';
+  if(m==='quiz'&&!q)next();
+}
+$('tl').onclick=()=>setMode('lab');$('tq').onclick=()=>setMode('quiz');
+place(0,0,0);place(3,1,0);sel=null;syncSel();
+(function loop(ts){
+  ctx.fillStyle='#050914';ctx.fillRect(0,0,W,H);
+  mode==='lab'?drawLab():drawQuiz(ts);
+  requestAnimationFrame(loop);
+})(0);
+</script>
+</body>
+</html>
